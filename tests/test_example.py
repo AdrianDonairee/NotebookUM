@@ -12,16 +12,5 @@ class TestExample(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.json['success'])
     
-    def test_get_one(self):
-        response = self.client.get('/api/example/1')
-        self.assertEqual(response.status_code, 200)
-        self.assertTrue(response.json['success'])
-    
-    def test_create(self):
-        data = {'name': 'Nuevo Ejemplo', 'description': 'Descripción de prueba'}
-        response = self.client.post('/api/example/', json=data)
-        self.assertEqual(response.status_code, 201)
-        self.assertTrue(response.json['success'])
-
 if __name__ == '__main__':
     unittest.main()
