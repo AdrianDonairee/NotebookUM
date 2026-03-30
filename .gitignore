@@ -1,0 +1,21 @@
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Entorno virtual
+venv/
+.env
+
+# Editor
+.vscode/
+
+# Python version manager
+.python-version
+
+# Logs (por si agregás después)
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
