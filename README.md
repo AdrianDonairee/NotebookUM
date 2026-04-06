@@ -42,7 +42,6 @@ Se aplicara los seis primeros factores:
 - Cada tabla debe tener su CRUD
 - Los usuarios envian al archivo endpoint /api/v1/procesar con el metodo POST
 - Los archivos validos deben ser contentType: application/pdf y deben ser validados en el servidor, si no son de pdf se manda  en formato json un error 400
-- Los archivos no deben superar los 25MB, si superan ese tamaño se manda  en formato json un error 400
-- Si el archivo supera
+- Los archivos no deben superar los 25MB, si superan ese tamaño se manda  en formato json un error status code 400 utilizando rfc9457
 
 
