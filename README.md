@@ -1,5 +1,23 @@
 # NotebookUM
 Programa capaz de resumir y analizar un pdf por medio de un modelo de IA
+
+## 🎯 Nuevas Funcionalidades
+
+### ✅ Validador de Archivos PDF (TDD)
+Sistema de validación de archivos PDF mediante firma de bytes (file signature).
+
+**Endpoint:** `POST /api/files/validate`
+
+**Características:**
+- Valida firma hexadecimal `25 50 44 46` (%PDF)
+- Servicio reutilizable: `validate_pdf_signature()`
+- 12 tests unitarios (100% cobertura)
+- Desarrollado con TDD (Test-Driven Development)
+
+**Documentación:** Ver [PDF_VALIDATOR.md](PDF_VALIDATOR.md) para detalles completos.
+
+---
+
 # Proyecto NotebookUM
 Es un proyecto que tiene como funcionalidades: 
 - extraer texto de archivos, utilizando la libreria Docling, 
