@@ -1,14 +1,14 @@
-from flask import Flask
-from config import Config
+from fastapi import FastAPI
 from .controllers import register_blueprints
 
-def create_app(config_class=Config):
-    app = Flask(__name__)
-    app.config.from_object(config_class)
-    
-    # Inicializar extensiones aquí si las hay
-    
-    # Registrar blueprints
+
+def create_app(config_class=None):
+    app = FastAPI(title="NotebookUM API")
+
+    # Keep parameter for backward compatibility with existing tests.
+    _ = config_class
+
+    # Register API routers
     register_blueprints(app)
-    
+
     return app

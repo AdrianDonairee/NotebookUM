@@ -1,38 +1,42 @@
-from flask import Blueprint, jsonify, request
+from fastapi import APIRouter, Body
+from fastapi.responses import JSONResponse
 from ..services.example_service import ExampleService
 
-example_bp = Blueprint('example', __name__)
+router = APIRouter(prefix='/api/example', tags=['example'])
 example_service = ExampleService()
 
-@example_bp.route('/', methods=['GET'])
+
+@router.get('/')
 def get_all():
     data = example_service.get_all()
-    return jsonify({'success': True, 'data': data})
+    return {'success': True, 'data': data}
 
-@example_bp.route('/<int:id>', methods=['GET'])
+
+@router.get('/{id}')
 def get_one(id):
     data = example_service.get_by_id(id)
     if data:
-        return jsonify({'success': True, 'data': data})
-    return jsonify({'success': False, 'message': 'Not found'}), 404
+        return {'success': True, 'data': data}
+    return JSONResponse(status_code=404, content={'success': False, 'message': 'Not found'})
 
-@example_bp.route('/', methods=['POST'])
-def create():
-    data = request.get_json()
+
+@router.post('/', status_code=201)
+def create(data: dict = Body(default_factory=dict)):
     result = example_service.create(data)
-    return jsonify({'success': True, 'data': result}), 201
+    return {'success': True, 'data': result}
 
-@example_bp.route('/<int:id>', methods=['PUT'])
-def update(id):
-    data = request.get_json()
+
+@router.put('/{id}')
+def update(id, data: dict = Body(default_factory=dict)):
     result = example_service.update(id, data)
     if result:
-        return jsonify({'success': True, 'data': result})
-    return jsonify({'success': False, 'message': 'Not found'}), 404
+        return {'success': True, 'data': result}
+    return JSONResponse(status_code=404, content={'success': False, 'message': 'Not found'})
 
-@example_bp.route('/<int:id>', methods=['DELETE'])
+
+@router.delete('/{id}')
 def delete(id):
     result = example_service.delete(id)
     if result:
-        return jsonify({'success': True, 'message': 'Deleted successfully'})
-    return jsonify({'success': False, 'message': 'Not found'}), 404
+        return {'success': True, 'message': 'Deleted successfully'}
+    return JSONResponse(status_code=404, content={'success': False, 'message': 'Not found'})

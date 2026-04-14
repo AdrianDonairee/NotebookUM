@@ -1,5 +1,6 @@
 import unittest
 from unittest.mock import patch, MagicMock
+from fastapi.testclient import TestClient
 from app import create_app
 from config import TestingConfig
 
@@ -7,7 +8,7 @@ from config import TestingConfig
 class TestAIService(unittest.TestCase):
     def setUp(self):
         self.app = create_app(TestingConfig)
-        self.client = self.app.test_client()
+        self.client = TestClient(self.app)
 
     @patch("app.services.ai_service.requests.post")
     def test_ai_query_returns_response_from_gemma3_4b(self, mock_post):
@@ -24,12 +25,14 @@ class TestAIService(unittest.TestCase):
             "/api/ai/query", json={"prompt": "Hola, ¿cómo estás?"}
         )
 
+        body = response.json()
+
         self.assertEqual(response.status_code, 200)
-        self.assertIn("response", response.json)
-        self.assertIsNotNone(response.json["response"])
-        self.assertIsInstance(response.json["response"], str)
+        self.assertIn("response", body)
+        self.assertIsNotNone(body["response"])
+        self.assertIsInstance(body["response"], str)
         self.assertEqual(
-            response.json["response"], "Hola! Estoy bien, gracias por preguntar."
+            body["response"], "Hola! Estoy bien, gracias por preguntar."
         )
 
 

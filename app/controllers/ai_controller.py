@@ -1,13 +1,17 @@
-from flask import Blueprint, jsonify, request
+from fastapi import APIRouter
+from pydantic import BaseModel
 from ..services.ai_service import AIService
 
-ai_bp = Blueprint("ai", __name__)
+router = APIRouter(prefix="/api/ai", tags=["ai"])
 ai_service = AIService()
 
 
-@ai_bp.route("/query", methods=["POST"])
-def query():
-    data = request.get_json()
-    prompt = data.get("prompt", "")
+class AIQueryRequest(BaseModel):
+    prompt: str = ""
+
+
+@router.post("/query")
+def query(payload: AIQueryRequest):
+    prompt = payload.prompt
     response = ai_service.query(prompt)
-    return jsonify({"response": response})
+    return {"response": response}
