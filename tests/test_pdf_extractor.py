@@ -14,7 +14,7 @@ class TestPDFTextExtraction(unittest.TestCase):
         """Set up test fixtures - load PDF files once for all tests"""
         # Get the directory where this test file is located
         cls.test_dir = Path(__file__).parent
-        cls.docs_dir = cls.test_dir / "docs"
+        cls.docs_dir = cls.test_dir / "docs" / "docs"
         
         # Load test PDF files
         with open(cls.docs_dir / "test_con_texto.pdf", "rb") as f:
