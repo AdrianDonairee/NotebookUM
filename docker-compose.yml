@@ -1,0 +1,50 @@
+version: '3.9'
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: notebookum-api
+    ports:
+      - "5000:5000"
+    environment:
+      - FLASK_ENV=development
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - .:/app
+      - /app/__pycache__
+    command: uvicorn src.app:app --host 0.0.0.0 --port 5000 --reload
+    networks:
+      - notebookum-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/docs"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # Opcional: Base de datos si la necesitas
+  # db:
+  #   image: postgres:16-alpine
+  #   container_name: notebookum-db
+  #   environment:
+  #     - POSTGRES_USER=notebookum
+  #     - POSTGRES_PASSWORD=changeme
+  #     - POSTGRES_DB=notebookum
+  #   volumes:
+  #     - postgres_data:/var/lib/postgresql/data
+  #   networks:
+  #     - notebookum-network
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "pg_isready -U notebookum"]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 5
+
+networks:
+  notebookum-network:
+    driver: bridge
+
+# volumes:
+#   postgres_data:
