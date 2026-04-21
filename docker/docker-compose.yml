@@ -1,0 +1,16 @@
+services:
+  notebookum:
+    image: notebookum:v1.0.0
+    ports:
+      - "5000:5000"
+    environment:
+      - FLASK_APP=${FLASK_APP}
+      - FLASK_ENV=${FLASK_ENV}
+      - SECRET_KEY=${SECRET_KEY}
+      - URL_API=${URL_API}
+    networks:
+      - redum
+  networks:
+    redum:
+      external: true
+      
