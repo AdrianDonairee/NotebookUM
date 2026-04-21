@@ -2,7 +2,7 @@ import unittest
 from unittest.mock import patch, MagicMock
 from fastapi.testclient import TestClient
 from app import create_app
-from src.config import TestingConfig
+from config import TestingConfig
 
 
 class TestAIService(unittest.TestCase):

@@ -2,7 +2,7 @@ import unittest
 import io
 from fastapi.testclient import TestClient
 from app import create_app
-from src.config import TestingConfig
+from config import TestingConfig
 
 
 class TestFileValidationEndpoint(unittest.TestCase):
