@@ -10,7 +10,7 @@ This module defines SQLAlchemy ORM models for:
 Follows clean code principles with clear naming and single responsibility.
 """
 
-from sqlalchemy import create_engine, Column, Integer, String, DateTime, Text, ForeignKey
+from sqlalchemy import create_engine, Column, Integer, String, DateTime, Text, ForeignKey, inspect, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
 from datetime import datetime
@@ -76,6 +76,7 @@ class HistorialDocumento(Base):
         ruta_archivo: Storage path
         fecha_carga: Upload timestamp (auto-set)
         tamaño_bytes: File size in bytes
+        texto_extraido: Full text extracted from the uploaded PDF
     """
     __tablename__ = "historiales_documentos"
     
@@ -85,6 +86,7 @@ class HistorialDocumento(Base):
     ruta_archivo = Column(String(500), nullable=False)
     fecha_carga = Column(DateTime, default=datetime.utcnow)
     tamaño_bytes = Column(Integer)
+    texto_extraido = Column(Text, nullable=True)
     
     # Relationships
     usuario = relationship("Usuario", back_populates="historiales_documentos")
@@ -158,6 +160,22 @@ def crear_tablas() -> None:
         SQLAlchemy exceptions for database connection issues
     """
     Base.metadata.create_all(bind=engine)
+    _asegurar_columna_texto_extraido()
+
+
+def _asegurar_columna_texto_extraido() -> None:
+    """Backfill `texto_extraido` column when running over an existing database."""
+    columnas = {
+        columna["name"]
+        for columna in inspect(engine).get_columns("historiales_documentos")
+    }
+    if "texto_extraido" in columnas:
+        return
+
+    with engine.begin() as connection:
+        connection.execute(
+            text("ALTER TABLE historiales_documentos ADD COLUMN texto_extraido TEXT")
+        )
 
 
 def obtener_sesion_db():
