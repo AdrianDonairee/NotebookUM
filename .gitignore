@@ -3,6 +3,9 @@ __pycache__/
 *.pyc
 *.pyo
 
+**/__pycache__/
+*.pyc
+
 # Entorno virtual
 venv/
 .env
@@ -30,3 +33,6 @@ tests/__pycache__/test_ai_service.cpython-312.pyc
 tests/__pycache__/test_ai_service.cpython-312.pyc
 tests/__pycache__/__init__.cpython-312.pyc
 __pycache__/config.cpython-312.pyc
+tests/__pycache__/__init__.cpython-312.pyc
+tests/__pycache__/test_ai_service.cpython-312-pytest-8.0.0.pyc
+tests/__pycache__/test_ai_service.cpython-312-pytest-8.0.0.pyc
