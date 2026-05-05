@@ -27,7 +27,7 @@ Es un proyecto que tiene como funcionalidades:
 Se utilizaran las siguientes tecnologias:
 - Metodologia de gestion de proyecto: SCRUM
 - Lenguaje: Python (usar PEP8)
-- Freamework: FastAPI
+- Framework: FastAPI
 - Herramienta de dependencia: uv
 - Base de datos: PostgresSQL
 - Usar la estructura limpia del proyecto
