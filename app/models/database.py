@@ -23,7 +23,7 @@ load_dotenv()
 # Database setup
 DATABASE_URL = os.environ.get(
     'DATABASE_URL',
-    'postgresql://postgres:postgres@localhost:5432/notebookum'
+    'postgresql://postgres:postgres@persistence-db:5432/notebookum'
 )
 
 engine = create_engine(DATABASE_URL, echo=False)
