@@ -11,7 +11,7 @@ services:
       PYTHONDONTWRITEBYTECODE: "1"
       APP_PORT: "5000"
       SECRET_KEY: "${SECRET_KEY:-clave-secreta-por-defecto}"
-      DATABASE_URL: "${DATABASE_URL:-postgresql://postgres:postgres@persistence-db:5432/notebookum}"
+      DATABASE_URL: "${DATABASE_URL:-postgresql://postgres:postgres@postgresql:5432/notebookum}"
       URL_API: "${URL_API:-https://ai.cloud.um.edu.ar/api/v1}"
     command:
       - uvicorn
@@ -22,3 +22,16 @@ services:
       - "${APP_PORT:-5000}"
     ports:
       - "${APP_PORT:-5000}:5000"
+    networks:
+      - redum
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.notebookum.rule=Host(`notebookum.universidad.localhost`)
+      - traefik.http.routers.notebookum.entrypoints=https
+      - traefik.http.routers.notebookum.tls=true
+      - traefik.http.services.notebookum.loadbalancer.server.port=5000
+      - traefik.docker.network=redum
+
+networks:
+  redum:
+    external: true

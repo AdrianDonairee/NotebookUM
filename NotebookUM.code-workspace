@@ -2,6 +2,24 @@
 	"folders": [
 		{
 			"path": "."
+		},
+		{
+			"path": "../extract-text-service"
+		},
+		{
+			"path": "../service-controller-notebookum"
+		},
+		{
+			"path": "../service-persistence-notebookum"
+		},
+		{
+			"path": "../service-summary-notebookum"
+		},
+		{
+			"path": "../service-user-notebookum"
+		},
+		{
+			"path": "../Microservicios"
 		}
 	],
 	"settings": {
