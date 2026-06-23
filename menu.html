@@ -1,0 +1,990 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NotebookUM — ChatBook Dashboard</title>
+<meta name="description" content="NotebookUM Dashboard — Upload PDFs, extract text, generate AI summaries. Microservices architecture with Consul, Traefik, Redis.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  /* ═══════════════════════════════════════════════════════════════════
+     DESIGN SYSTEM — Slate & Sky dark theme
+     ═══════════════════════════════════════════════════════════════════ */
+  :root {
+    --bg:       #07080c;
+    --bg2:      #0e1017;
+    --surface:  #161a24;
+    --surface2: #1e2331;
+    --surface3: #282e3f;
+    --border:   rgba(255,255,255,0.04);
+    --border-h: rgba(56,189,248,0.2);
+
+    --accent:   #38bdf8;
+    --accent2:  #7dd3fc;
+    --mint:     #2dd4bf;
+    --amber:    #fbbf24;
+    --rose:     #f87171;
+    --sky:      #60a5fa;
+    --cyan:     #22d3ee;
+
+    --text:     #e8edf5;
+    --text2:    #8896b0;
+    --text3:    #55607a;
+
+    --glass:    rgba(22,26,36,0.7);
+    --glass-b:  blur(16px);
+
+    --radius:   12px;
+    --radius-s: 6px;
+    --ease:     cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Inter', -apple-system, system-ui, sans-serif;
+    font-size: 13px;
+    min-height: 100vh;
+    overflow: hidden;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background:
+      radial-gradient(ellipse 700px 500px at 10% 15%, rgba(56,189,248,0.05) 0%, transparent 70%),
+      radial-gradient(ellipse 600px 400px at 90% 80%, rgba(45,212,191,0.04) 0%, transparent 70%),
+      radial-gradient(ellipse 300px 300px at 50% 0%, rgba(251,191,36,0.02) 0%, transparent 70%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(56,189,248,0.015) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(56,189,248,0.015) 1px, transparent 1px);
+    background-size: 60px 60px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .app { position: relative; z-index: 1; display: flex; height: 100vh; }
+
+  .sidebar {
+    width: 250px;
+    min-width: 250px;
+    background: var(--glass);
+    backdrop-filter: var(--glass-b);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+  }
+
+  .logo { padding: 24px 20px 20px; border-bottom: 1px solid var(--border); }
+  .logo-title {
+    font-size: 18px; font-weight: 800; letter-spacing: -0.5px;
+    background: linear-gradient(135deg, var(--accent) 0%, var(--cyan) 50%, var(--mint) 100%);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+  }
+  .logo-sub { font-size: 10px; color: var(--text3); margin-top: 3px; text-transform: uppercase; letter-spacing: 2px; font-weight: 500; }
+
+  .nav-section { padding: 16px 10px 6px; }
+  .nav-label { font-size: 9px; text-transform: uppercase; letter-spacing: 2px; color: var(--text3); padding: 0 10px; margin-bottom: 6px; font-weight: 600; }
+  .nav-item {
+    display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: var(--radius-s);
+    cursor: pointer; color: var(--text2); transition: all 0.2s var(--ease); border: 1px solid transparent;
+    font-size: 12.5px; font-weight: 450; position: relative;
+  }
+  .nav-item:hover { background: rgba(56,189,248,0.06); color: var(--text); }
+  .nav-item.active { background: rgba(56,189,248,0.1); color: var(--text); border-color: var(--border-h); }
+  .nav-item.active::before { content: ''; position: absolute; left: 0; top: 20%; bottom: 20%; width: 3px; border-radius: 0 3px 3px 0; background: linear-gradient(to bottom, var(--accent), var(--cyan)); }
+  .nav-item.highlight { color: var(--cyan); }
+  .nav-icon { width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; font-size: 13px; flex-shrink: 0; }
+
+  .service-status { padding: 14px 10px; border-top: 1px solid var(--border); margin-top: auto; }
+  .status-label { font-size: 9px; text-transform: uppercase; letter-spacing: 2px; color: var(--text3); padding: 0 10px; margin-bottom: 10px; font-weight: 600; }
+  .status-row { display: flex; align-items: center; justify-content: space-between; padding: 5px 10px; font-size: 11px; color: var(--text2); }
+  .status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--text3); transition: all 0.3s var(--ease); flex-shrink: 0; }
+  .status-dot.up { background: var(--mint); box-shadow: 0 0 10px rgba(45,212,191,0.5); }
+  .status-dot.down { background: var(--rose); box-shadow: 0 0 10px rgba(248,113,113,0.4); }
+
+  .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
+  .topbar {
+    display: flex; align-items: center; justify-content: space-between; padding: 14px 24px;
+    border-bottom: 1px solid var(--border); background: var(--glass); backdrop-filter: var(--glass-b); gap: 16px; flex-shrink: 0;
+  }
+  .topbar-title { font-size: 15px; font-weight: 700; color: var(--text); letter-spacing: -0.3px; }
+  .topbar-right { display: flex; gap: 8px; align-items: center; }
+
+  .stats-chips { display: flex; gap: 6px; margin-right: 12px; }
+  .stat-chip {
+    display: flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 20px;
+    font-size: 11px; font-weight: 600; border: 1px solid var(--border); background: rgba(56,189,248,0.04); color: var(--text2); font-variant-numeric: tabular-nums;
+  }
+  .stat-chip .stat-val { color: var(--text); }
+
+  .btn { padding: 7px 16px; border-radius: var(--radius-s); border: 1px solid var(--border); background: var(--surface2); color: var(--text); font-family: inherit; font-size: 11.5px; font-weight: 500; cursor: pointer; transition: all 0.2s var(--ease); }
+  .btn:hover { border-color: var(--accent); color: var(--accent); background: rgba(56,189,248,0.06); }
+  .btn.danger { border-color: rgba(248,113,113,0.25); color: var(--rose); }
+  .btn.danger:hover { background: var(--rose); color: #fff; border-color: var(--rose); }
+  .send-btn { padding: 8px 20px; border-radius: var(--radius-s); border: none; background: linear-gradient(135deg, var(--accent) 0%, #1d4ed8 100%); color: #fff; font-family: inherit; font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.2s var(--ease); letter-spacing: 0.3px; }
+  .send-btn:hover { opacity: 0.9; box-shadow: 0 0 24px rgba(56,189,248,0.35); transform: translateY(-1px); }
+  .send-btn:disabled { opacity: 0.35; cursor: not-allowed; box-shadow: none; transform: none; }
+  .btn-row { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
+
+  .content-area { flex: 1; display: flex; overflow: hidden; }
+  .request-panel { flex: 1; overflow-y: auto; padding: 24px; display: flex; flex-direction: column; gap: 16px; }
+  .request-panel::-webkit-scrollbar { width: 5px; }
+  .request-panel::-webkit-scrollbar-thumb { background: var(--surface3); border-radius: 3px; }
+
+  .panel { background: var(--glass); backdrop-filter: var(--glass-b); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; transition: all 0.2s var(--ease); }
+  .panel:hover { border-color: var(--border-h); }
+  .panel-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; background: rgba(255,255,255,0.02); border-bottom: 1px solid var(--border); cursor: pointer; user-select: none; transition: background 0.15s; }
+  .panel-header:hover { background: rgba(56,189,248,0.04); }
+  .panel-title { display: flex; align-items: center; gap: 8px; font-size: 12.5px; font-weight: 550; flex-wrap: wrap; }
+  .panel-chevron { font-size: 10px; color: var(--text3); transition: transform 0.2s; }
+  .panel-body { padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+  .panel-body.hidden { display: none; }
+
+  .method { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 4px; letter-spacing: 0.5px; font-family: 'JetBrains Mono', monospace; }
+  .method.GET  { background: rgba(96,165,250,0.12); color: var(--sky); }
+  .method.POST { background: rgba(45,212,191,0.12); color: var(--mint); }
+  .method.PUT  { background: rgba(251,191,36,0.12); color: var(--amber); }
+  .method.PATCH  { background: rgba(251,191,36,0.12); color: var(--amber); }
+  .method.DELETE { background: rgba(248,113,113,0.12); color: var(--rose); }
+
+  .tag { display: inline-block; font-size: 9px; padding: 2px 7px; border-radius: 4px; text-transform: uppercase; letter-spacing: 1px; font-weight: 600; }
+  .tag.internal { background: rgba(251,191,36,0.08); border: 1px solid rgba(251,191,36,0.2); color: var(--amber); }
+  .tag.auth     { background: rgba(56,189,248,0.08); border: 1px solid rgba(56,189,248,0.2); color: var(--accent); }
+  .tag.public   { background: rgba(45,212,191,0.08); border: 1px solid rgba(45,212,191,0.2); color: var(--mint); }
+
+  .field-row { display: flex; flex-direction: column; gap: 5px; }
+  .field-label { font-size: 10px; color: var(--text3); text-transform: uppercase; letter-spacing: 1px; font-weight: 600; }
+  .field-input { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius-s); color: var(--text); font-family: 'JetBrains Mono', monospace; font-size: 12px; padding: 9px 12px; width: 100%; transition: border-color 0.2s; }
+  .field-input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(56,189,248,0.12); }
+  .field-input::placeholder { color: var(--text3); }
+  .field-input[readonly] { opacity: 0.6; cursor: default; }
+  textarea.field-input { resize: vertical; min-height: 80px; }
+  .field-row-h { display: flex; gap: 10px; }
+  .field-row-h .field-row { flex: 1; }
+
+  .file-drop { background: var(--bg2); border: 2px dashed var(--border); border-radius: var(--radius); padding: 28px; text-align: center; cursor: pointer; transition: all 0.2s var(--ease); color: var(--text3); font-size: 12px; position: relative; }
+  .file-drop:hover, .file-drop.over { border-color: var(--accent); background: rgba(56,189,248,0.04); color: var(--accent); }
+  .file-drop input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+  .file-drop-icon { font-size: 28px; margin-bottom: 8px; }
+  .file-drop-title { font-weight: 600; color: var(--text); margin-bottom: 4px; }
+  .file-drop-sub { font-size: 11px; }
+
+  .section { display: none; }
+  .section.active { display: flex; flex-direction: column; gap: 16px; }
+
+  .health-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; }
+  .health-card { background: var(--glass); backdrop-filter: var(--glass-b); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px; display: flex; flex-direction: column; gap: 10px; transition: all 0.2s var(--ease); position: relative; overflow: hidden; }
+  .health-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; background: linear-gradient(90deg, transparent, var(--accent), transparent); opacity: 0; transition: opacity 0.3s; }
+  .health-card:hover { border-color: var(--border-h); transform: translateY(-2px); }
+  .health-card:hover::before { opacity: 1; }
+  .health-card-name { font-size: 14px; font-weight: 700; letter-spacing: -0.3px; }
+  .health-card-url { font-size: 10px; color: var(--text3); font-family: 'JetBrains Mono', monospace; }
+  .health-card-status { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--text2); }
+  .health-ping-btn { margin-top: auto; padding: 7px 0; border-radius: var(--radius-s); border: 1px solid var(--border); background: var(--surface2); color: var(--text2); font-family: inherit; font-size: 11px; font-weight: 500; cursor: pointer; transition: all 0.15s; width: 100%; }
+  .health-ping-btn:hover { border-color: var(--accent); color: var(--accent); background: rgba(56,189,248,0.06); }
+
+  .flow-step { border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; transition: border-color 0.3s var(--ease); }
+  .flow-step.active { border-color: var(--accent); box-shadow: 0 0 24px rgba(56,189,248,0.08); }
+  .flow-step.done   { border-color: var(--mint); }
+  .flow-step-header { display: flex; align-items: center; gap: 12px; padding: 14px 18px; background: rgba(255,255,255,0.02); }
+  .flow-step-num { width: 28px; height: 28px; border-radius: 50%; background: var(--surface3); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; flex-shrink: 0; transition: all 0.3s var(--ease); color: var(--text2); }
+  .flow-step.active .flow-step-num { background: linear-gradient(135deg, var(--accent), #1d4ed8); color: #fff; box-shadow: 0 0 12px rgba(56,189,248,0.3); }
+  .flow-step.done   .flow-step-num { background: linear-gradient(135deg, var(--mint), #059669); color: #000; }
+  .flow-step-title { font-size: 14px; font-weight: 650; letter-spacing: -0.2px; }
+  .flow-step-status { margin-left: auto; font-size: 11px; color: var(--text3); font-weight: 500; }
+  .flow-step.active .flow-step-status { color: var(--accent); }
+  .flow-step.done   .flow-step-status { color: var(--mint); }
+  .flow-step-body { padding: 18px; display: flex; flex-direction: column; gap: 12px; background: rgba(0,0,0,0.2); }
+  .flow-bar { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: var(--radius-s); border: 1px solid var(--border); background: var(--surface2); font-size: 11.5px; color: var(--text3); font-weight: 500; }
+  .flow-bar.processing { border-color: rgba(251,191,36,0.3); color: var(--amber); }
+  .flow-bar.completed  { border-color: rgba(45,212,191,0.3); color: var(--mint); }
+  .flow-bar.failed     { border-color: rgba(248,113,113,0.3); color: var(--rose); }
+
+  .text-preview { background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-s); padding: 12px; font-size: 11px; color: var(--text3); max-height: 400px; overflow-y: auto; line-height: 1.7; white-space: pre-wrap; word-break: break-word; font-family: 'JetBrains Mono', monospace; }
+  .text-preview.has-content { color: var(--text2); }
+  .result-display { background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-s); padding: 16px; font-size: 13px; line-height: 1.8; color: var(--text); max-height: 500px; overflow-y: auto; white-space: pre-wrap; word-break: break-word; }
+
+  .info-bar { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: var(--radius-s); font-size: 11px; font-weight: 500; }
+  .info-bar.blue  { border: 1px solid rgba(96,165,250,0.25); background: rgba(96,165,250,0.05); color: var(--sky); }
+  .info-bar.green { border: 1px solid rgba(45,212,191,0.25); background: rgba(45,212,191,0.05); color: var(--mint); }
+
+  .log-panel { width: 380px; min-width: 320px; border-left: 1px solid var(--border); display: flex; flex-direction: column; background: rgba(7,8,12,0.75); backdrop-filter: blur(12px); }
+  .log-header { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; border-bottom: 1px solid var(--border); background: var(--glass); }
+  .log-title { font-size: 13px; font-weight: 700; }
+  .log-count { font-size: 10px; background: var(--surface2); border: 1px solid var(--border); border-radius: 12px; padding: 2px 10px; color: var(--text3); font-weight: 600; font-variant-numeric: tabular-nums; }
+  .log-body { flex: 1; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+  .log-body::-webkit-scrollbar { width: 4px; }
+  .log-body::-webkit-scrollbar-thumb { background: var(--surface3); border-radius: 2px; }
+  .log-entry { border-radius: var(--radius-s); border: 1px solid var(--border); overflow: hidden; animation: logSlide 0.2s var(--ease); }
+  @keyframes logSlide { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }
+  .log-entry-header { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; font-size: 11px; gap: 8px; cursor: pointer; }
+  .log-entry-header:hover { opacity: 0.85; }
+  .log-entry.success .log-entry-header { background: rgba(45,212,191,0.05); }
+  .log-entry.error   .log-entry-header { background: rgba(248,113,113,0.05); }
+  .log-entry.pending .log-entry-header { background: rgba(251,191,36,0.05); }
+  .log-entry.info    .log-entry-header { background: rgba(96,165,250,0.05); }
+  .log-chip { font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 4px; font-family: 'JetBrains Mono', monospace; flex-shrink: 0; }
+  .log-entry.success .log-chip { background: rgba(45,212,191,0.15); color: var(--mint); }
+  .log-entry.error   .log-chip { background: rgba(248,113,113,0.15); color: var(--rose); }
+  .log-entry.pending .log-chip { background: rgba(251,191,36,0.15); color: var(--amber); }
+  .log-entry.info    .log-chip { background: rgba(96,165,250,0.15); color: var(--sky); }
+  .log-entry-name { flex: 1; color: var(--text2); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .log-entry-time { color: var(--text3); font-size: 10px; white-space: nowrap; font-family: 'JetBrains Mono', monospace; }
+  .log-entry-body { padding: 10px 12px; border-top: 1px solid var(--border); background: var(--bg); font-size: 11px; line-height: 1.6; white-space: pre-wrap; word-break: break-all; max-height: 220px; overflow-y: auto; color: var(--text2); font-family: 'JetBrains Mono', monospace; display: none; }
+  .log-entry-body.open { display: block; }
+  .log-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; gap: 10px; color: var(--text3); }
+  .log-empty-icon { font-size: 36px; opacity: 0.25; }
+
+  .token-bar { padding: 12px 16px; border-top: 1px solid var(--border); background: var(--glass); display: flex; align-items: center; gap: 8px; }
+  .token-label { font-size: 10px; color: var(--text3); white-space: nowrap; font-weight: 600; }
+  .token-input { flex: 1; background: var(--bg); border: 1px solid var(--border); border-radius: 5px; color: var(--text2); font-family: 'JetBrains Mono', monospace; font-size: 10px; padding: 6px 8px; }
+  .token-input:focus { outline: none; border-color: var(--accent); }
+
+  .auth-container { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .auth-half { display: flex; flex-direction: column; gap: 10px; }
+  .auth-half:last-child { padding-left: 20px; border-left: 1px solid var(--border); }
+  .auth-title { font-size: 13px; font-weight: 700; color: var(--accent); margin-bottom: 4px; }
+  .logged-in-box { text-align: center; padding: 20px; display: none; }
+  .user-badge { display: inline-block; padding: 6px 16px; background: rgba(45,212,191,0.1); border: 1px solid rgba(45,212,191,0.2); color: var(--mint); border-radius: 20px; font-weight: 600; font-size: 12px; margin: 10px 0; }
+
+  .modal-overlay {
+    position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+    background: rgba(0,0,0,0.7); backdrop-filter: blur(8px);
+    display: none; justify-content: center; align-items: center; z-index: 100;
+  }
+  .modal-overlay.active { display: flex; animation: fadeIn 0.2s var(--ease); }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+  .modal-box {
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+    width: 600px; max-width: 90vw; max-height: 85vh; display: flex; flex-direction: column;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+  }
+  .modal-header { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; border-bottom: 1px solid var(--border); }
+  .modal-title { font-size: 15px; font-weight: 600; color: var(--text); }
+  .modal-close { cursor: pointer; font-size: 18px; color: var(--text3); transition: color 0.2s; background: none; border: none; }
+  .modal-close:hover { color: var(--text); }
+  .modal-body { padding: 20px; overflow-y: auto; font-size: 13px; line-height: 1.6; color: var(--text2); }
+  .modal-body pre { background: var(--bg2); padding: 12px; border-radius: var(--radius-s); font-family: 'JetBrains Mono', monospace; font-size: 11px; overflow-x: auto; color: var(--text); border: 1px solid var(--border); white-space: pre-wrap; word-break: break-word; }
+
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ═══ SIDEBAR ═══ -->
+  <aside class="sidebar">
+    <div class="logo">
+      <div class="logo-title">📓 NotebookUM</div>
+      <div class="logo-sub">ChatBook Dashboard</div>
+    </div>
+    <div class="nav-section">
+      <div class="nav-label">Vistas</div>
+      <div class="nav-item active" onclick="setSection('health')">    <span class="nav-icon">🔬</span> Health Check</div>
+      <div class="nav-item highlight" onclick="setSection('flujo')">  <span class="nav-icon">⚡</span> Flujo Completo</div>
+      <div class="nav-item" onclick="setSection('users')">            <span class="nav-icon">👤</span> Usuarios</div>
+      <div class="nav-item" onclick="setSection('documents')">        <span class="nav-icon">📄</span> Documentos</div>
+      <div class="nav-item" onclick="setSection('summaries')">        <span class="nav-icon">✨</span> Resúmenes</div>
+    </div>
+    <div class="service-status">
+      <div class="status-label">Servicios</div>
+      <div class="status-row"><span>Controller</span>  <span class="status-dot" id="si-controller"></span></div>
+      <div class="status-row"><span>Users</span>        <span class="status-dot" id="si-users"></span></div>
+      <div class="status-row"><span>Summary / AI</span> <span class="status-dot" id="si-ai"></span></div>
+      <div class="status-row"><span>Extract Text</span>    <span class="status-dot" id="si-extractor"></span></div>
+      <div class="status-row"><span>Persistence</span>  <span class="status-dot" id="si-persistence"></span></div>
+    </div>
+  </aside>
+
+  <!-- ═══ MAIN ═══ -->
+  <main class="main">
+    <div class="topbar">
+      <div class="topbar-title" id="section-title">Health Check</div>
+      <div class="topbar-right">
+        <div class="stats-chips">
+          <div class="stat-chip">📈 <span class="stat-val" id="stat-pdfs">0</span> PDFs</div>
+          <div class="stat-chip">📝 <span class="stat-val" id="stat-texts">0</span> Textos</div>
+          <div class="stat-chip">✨ <span class="stat-val" id="stat-sums">0</span> Resúmenes</div>
+        </div>
+        <button class="btn" onclick="pingAll()">🔄 Ping All</button>
+        <button class="btn danger" onclick="clearLogs()">🧹 Clear Logs</button>
+      </div>
+    </div>
+
+    <div class="content-area">
+      <div class="request-panel">
+
+        <!-- ═══ HEALTH ═══ -->
+        <div id="section-health" class="section active">
+          <div class="health-grid" id="health-grid"></div>
+        </div>
+
+        <!-- ═══ FLUJO COMPLETO ═══ -->
+        <div id="section-flujo" class="section">
+          <div class="info-bar blue">🔐 Este flujo pasa por el <strong>Controller</strong> (controller.universidad.localhost). Logueá primero en "Usuarios" — el token se guarda automáticamente.</div>
+
+          <!-- Step 1: Upload -->
+          <div class="flow-step active" id="flow-step-1">
+            <div class="flow-step-header">
+              <div class="flow-step-num">1</div>
+              <div class="flow-step-title">Subir PDF → Controller → Extractor</div>
+              <div class="flow-step-status" id="flow-s1">Esperando archivo</div>
+            </div>
+            <div class="flow-step-body">
+              <div class="file-drop" id="flow-drop">
+                <input type="file" id="flow-file" accept=".pdf" onchange="flowFileChanged()">
+                <div class="file-drop-icon">📎</div>
+                <div class="file-drop-title" id="flow-file-label">Arrastrá un PDF aquí o hacé click</div>
+                <div class="file-drop-sub">Máximo 25 MB · Solo archivos PDF</div>
+              </div>
+              <div class="btn-row">
+                <button class="send-btn" id="flow-btn-1" onclick="flowUpload()">Procesar documento</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Step 2: Processing -->
+          <div class="flow-step" id="flow-step-2">
+            <div class="flow-step-header">
+              <div class="flow-step-num">2</div>
+              <div class="flow-step-title">Extracción de texto (pdfplumber)</div>
+              <div class="flow-step-status" id="flow-s2">Pendiente</div>
+            </div>
+            <div class="flow-step-body">
+              <div class="field-row-h">
+                <div class="field-row"><div class="field-label">Document ID</div><input class="field-input" id="flow-doc-id" placeholder="auto" readonly></div>
+                <div class="field-row"><div class="field-label">Status</div><input class="field-input" id="flow-status" placeholder="auto" readonly></div>
+              </div>
+              <div class="flow-bar" id="flow-bar">Sin proceso activo</div>
+              <div id="flow-text-area" style="display:none; flex-direction:column; gap:10px;">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                  <div class="field-label">Texto completo extraído del documento</div>
+                  <button class="btn" onclick="navigator.clipboard.writeText(document.getElementById('flow-text-preview').textContent)">📋 Copiar</button>
+                </div>
+                <div class="text-preview has-content" id="flow-text-preview"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Step 3: Summary -->
+          <div class="flow-step" id="flow-step-3">
+            <div class="flow-step-header">
+              <div class="flow-step-num">3</div>
+              <div class="flow-step-title">Resumen con IA y guardado en PostgreSQL</div>
+              <div class="flow-step-status" id="flow-s3">Pendiente</div>
+            </div>
+            <div class="flow-step-body">
+              <div id="flow-result-area" style="display:none; flex-direction:column; gap:12px;">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                  <div class="field-label">Resumen académico (Groq · Llama 3.3 70B)</div>
+                  <div style="display:flex; gap:6px;">
+                    <button class="btn" onclick="navigator.clipboard.writeText(document.getElementById('flow-result-text').textContent)">📋 Copiar</button>
+                  </div>
+                </div>
+                <div class="result-display" id="flow-result-text"></div>
+                <div class="info-bar green" id="flow-db-ok" style="display:none;">
+                  ✅ Guardado en PostgreSQL — tablas <strong>documents</strong> + <strong>summaries</strong>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ═══ USUARIOS ═══ -->
+        <div id="section-users" class="section">
+          <!-- Auth panel -->
+          <div class="panel">
+            <div class="panel-header" onclick="togglePanel(this)">
+              <div class="panel-title"><span class="method POST">POST</span> /api/v1/auth/register o login (User Service) <span class="tag public">public</span></div>
+              <span class="panel-chevron">▾</span>
+            </div>
+            <div class="panel-body">
+              <!-- Logged out -->
+              <div id="auth-forms" class="auth-container">
+                <div class="auth-half">
+                  <div class="auth-title">Iniciar Sesión</div>
+                  <div class="field-row"><div class="field-label">Email</div><input class="field-input" id="login-email" placeholder="lucia@um.edu.ar"></div>
+                  <div class="field-row"><div class="field-label">Password</div><input class="field-input" type="password" id="login-pass"></div>
+                  <button class="send-btn" onclick="doLogin()">Login</button>
+                </div>
+                <div class="auth-half">
+                  <div class="auth-title">Registrarse</div>
+                  <div class="field-row"><div class="field-label">Nombre</div><input class="field-input" id="reg-first" placeholder="Lucía"></div>
+                  <div class="field-row"><div class="field-label">Apellido</div><input class="field-input" id="reg-last" placeholder="García"></div>
+                  <div class="field-row"><div class="field-label">Email</div><input class="field-input" id="reg-email" placeholder="lucia@um.edu.ar"></div>
+                  <div class="field-row"><div class="field-label">Password</div><input class="field-input" type="password" id="reg-pass"></div>
+                  <button class="send-btn" style="background: linear-gradient(135deg, #38bdf8, #1d4ed8);" onclick="doRegister()">Registrar</button>
+                </div>
+              </div>
+              <!-- Logged in -->
+              <div id="logged-in" class="logged-in-box">
+                <div style="font-size: 28px; margin-bottom: 8px;">👋</div>
+                <div style="color: var(--text2); font-size: 12px;">Sesión iniciada como</div>
+                <div id="current-user" class="user-badge">usuario@test.com</div>
+                <div><button class="btn" onclick="doLogout()">Cerrar Sesión</button></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-header" onclick="togglePanel(this)">
+              <div class="panel-title"><span class="method GET">GET</span> /api/v1/auth/me — Perfil actual (User Service)<span class="tag auth">auth</span></div>
+              <span class="panel-chevron">▾</span>
+            </div>
+            <div class="panel-body"><button class="send-btn" onclick="getMe()">Ver mi perfil</button></div>
+          </div>
+        </div>
+
+        <!-- ═══ DOCUMENTOS ═══ -->
+        <div id="section-documents" class="section">
+          <div class="panel">
+            <div class="panel-header" onclick="togglePanel(this)">
+              <div class="panel-title"><span class="method POST">POST</span> /api/v1/documents/upload — Subir PDF (Controller) <span class="tag public">public</span></div>
+              <span class="panel-chevron">▾</span>
+            </div>
+            <div class="panel-body">
+              <div class="file-drop" id="doc-drop">
+                <input type="file" id="doc-file" accept=".pdf" onchange="updateDropLabel('doc-file','doc-drop-label')">
+                <div class="file-drop-icon">📄</div>
+                <div class="file-drop-title" id="doc-drop-label">Seleccionar PDF</div>
+                <div class="file-drop-sub">Se enviará al Controller como base64</div>
+              </div>
+              <button class="send-btn" onclick="uploadDoc()">Enviar</button>
+            </div>
+          </div>
+          <div class="panel">
+            <div class="panel-header" onclick="togglePanel(this)">
+              <div class="panel-title"><span class="method GET">GET</span> /api/v1/documents/:id — Estado y texto del doc (Controller) <span class="tag auth">auth</span></div>
+              <span class="panel-chevron">▾</span>
+            </div>
+            <div class="panel-body">
+              <div class="field-row"><div class="field-label">Document ID</div><input class="field-input" id="doc-get-id" placeholder="ID del documento"></div>
+              <button class="send-btn" onclick="getDocStatus()">Consultar Documento</button>
+            </div>
+          </div>
+          <div class="panel">
+            <div class="panel-header" onclick="togglePanel(this)">
+              <div class="panel-title"><span class="method GET">GET</span> /api/v1/db/documents — Listar todos (Persistence directo) <span class="tag internal">internal</span></div>
+              <span class="panel-chevron">▾</span>
+            </div>
+            <div class="panel-body"><button class="send-btn" onclick="persistGet('documents', 'Lista de Todos los Documentos (BD)')">Ver todos los documentos en DB</button></div>
+          </div>
+        </div>
+
+        <!-- ═══ RESÚMENES ═══ -->
+        <div id="section-summaries" class="section">
+          <div class="panel">
+            <div class="panel-header" onclick="togglePanel(this)">
+              <div class="panel-title"><span class="method GET">GET</span> /api/v1/summaries/document/:id — Obtener resumen de un doc (Controller) <span class="tag auth">auth</span></div>
+              <span class="panel-chevron">▾</span>
+            </div>
+            <div class="panel-body">
+              <div class="field-row"><div class="field-label">Document ID</div><input class="field-input" id="sum-doc-id" placeholder="ID del documento"></div>
+              <button class="send-btn" onclick="getSummary()">Consultar Resumen</button>
+            </div>
+          </div>
+          <div class="panel">
+            <div class="panel-header" onclick="togglePanel(this)">
+              <div class="panel-title"><span class="method GET">GET</span> /api/v1/db/summaries — Listar todos (Persistence directo) <span class="tag internal">internal</span></div>
+              <span class="panel-chevron">▾</span>
+            </div>
+            <div class="panel-body"><button class="send-btn" onclick="persistGet('summaries', 'Lista de Todos los Resúmenes (BD)')">Ver todos los resúmenes en DB</button></div>
+          </div>
+        </div>
+
+
+      </div>
+
+      <!-- ═══ LOG PANEL ═══ -->
+      <aside class="log-panel">
+        <div class="log-header">
+          <div class="log-title">📋 Logs en Vivo</div>
+          <span class="log-count" id="log-count">0 requests</span>
+        </div>
+        <div class="log-body" id="log-body">
+          <div class="log-empty">
+            <div class="log-empty-icon">◈</div>
+            <div>Sin requests todavía</div>
+          </div>
+        </div>
+        <div class="token-bar">
+          <div class="token-label">Bearer Token:</div>
+          <input class="token-input" id="global-token" placeholder="Se auto-completa al hacer login...">
+        </div>
+      </aside>
+    </div>
+  </main>
+</div>
+
+<!-- ═══ MODAL OVERLAY ═══ -->
+<div class="modal-overlay" id="generic-modal" onclick="if(event.target===this) closeModal()">
+  <div class="modal-box">
+    <div class="modal-header">
+      <div class="modal-title" id="modal-title">Título</div>
+      <button class="modal-close" onclick="closeModal()">×</button>
+    </div>
+    <div class="modal-body" id="modal-body"></div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════════
+// CONFIGURATION — Real endpoints via Traefik
+// ═══════════════════════════════════════════════════════════════════════
+const URLS = {
+  controller:  'https://controller.universidad.localhost',
+  users:       'https://user.universidad.localhost',
+  ai:          'https://summary.universidad.localhost',
+  extractor:   'https://extract-text-service.universidad.localhost',
+  persistence: 'https://persistence.universidad.localhost',
+};
+
+const HEALTH = {
+  controller: '/health', users: '/health', ai: '/health',
+  extractor: '/health', persistence: '/health',
+};
+
+let stats = { pdfs: 0, texts: 0, sums: 0 };
+const flow = { docId: null, text: null, summary: null, filename: null };
+
+// ═══════════════════════════════════════════════════════════════════════
+// LOGGING
+// ═══════════════════════════════════════════════════════════════════════
+let logCount = 0;
+
+function addLog(name, statusCode, body, type) {
+  logCount++;
+  document.getElementById('log-count').textContent = logCount + ' request' + (logCount !== 1 ? 's' : '');
+  const empty = document.querySelector('.log-empty');
+  if (empty) empty.remove();
+
+  const entry = document.createElement('div');
+  entry.className = 'log-entry ' + type;
+  const t = new Date().toLocaleTimeString('es-AR', { hour12: false });
+  const b = typeof body === 'object' ? JSON.stringify(body, null, 2) : String(body || '');
+  entry.innerHTML = `
+    <div class="log-entry-header" onclick="this.nextElementSibling.classList.toggle('open')">
+      <span class="log-chip">${statusCode || '...'}</span>
+      <span class="log-entry-name">${name}</span>
+      <span class="log-entry-time">${t}</span>
+    </div>
+    <div class="log-entry-body">${b.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>`;
+  const lb = document.getElementById('log-body');
+  lb.insertBefore(entry, lb.firstChild);
+}
+
+function clearLogs() {
+  logCount = 0;
+  document.getElementById('log-count').textContent = '0 requests';
+  document.getElementById('log-body').innerHTML = '<div class="log-empty"><div class="log-empty-icon">◉</div><div>Sin requests todavía</div></div>';
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// UI & MODALS
+// ═══════════════════════════════════════════════════════════════════════
+function showModal(title, contentHTML) {
+  document.getElementById('modal-title').innerHTML = title;
+  document.getElementById('modal-body').innerHTML = contentHTML;
+  document.getElementById('generic-modal').classList.add('active');
+}
+
+function closeModal() {
+  document.getElementById('generic-modal').classList.remove('active');
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// HTTP HELPER
+// ═══════════════════════════════════════════════════════════════════════
+async function req(name, url, opts = {}) {
+  addLog(name, '...', 'Enviando → ' + url, 'pending');
+  const token = document.getElementById('global-token').value.trim();
+  const headers = opts.headers || {};
+  if (token && !headers['Authorization']) headers['Authorization'] = 'Bearer ' + token;
+  if (!opts.isFormData && opts.method !== 'GET' && !headers['Content-Type']) headers['Content-Type'] = 'application/json';
+
+  try {
+    const resp = await fetch(url, { ...opts, headers });
+    const ct = resp.headers.get('content-type') || '';
+    const data = ct.includes('json') ? await resp.json() : await resp.text();
+    addLog(name, resp.status, data, resp.ok ? 'success' : 'error');
+
+    // Auto-save token from auth responses
+    if (resp.ok && data && data.access_token) {
+      document.getElementById('global-token').value = data.access_token;
+      addLog('🔑 Token guardado', 'OK', 'Bearer token auto-completado', 'info');
+    }
+
+    return { ok: resp.ok, status: resp.status, data };
+  } catch (err) {
+    addLog(name, 'ERR', err.message, 'error');
+    return { ok: false, error: err };
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// NAVIGATION
+// ═══════════════════════════════════════════════════════════════════════
+const TITLES = {
+  health: 'Health Check',
+  flujo: 'Flujo Completo: PDF → Extracción → IA → PostgreSQL',
+  users: 'Usuarios — Autenticación',
+  documents: 'Documentos — Upload & Status',
+  summaries: 'Resúmenes — Generación & Consulta',
+};
+
+function setSection(id) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('section-' + id).classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(n => {
+    if (n.getAttribute('onclick') === `setSection('${id}')`) n.classList.add('active');
+  });
+  document.getElementById('section-title').textContent = TITLES[id] || id;
+}
+
+function togglePanel(h) {
+  const body = h.nextElementSibling;
+  body.classList.toggle('hidden');
+  const chevron = h.querySelector('.panel-chevron');
+  if (chevron) chevron.textContent = body.classList.contains('hidden') ? '▸' : '▾';
+}
+
+function updateDropLabel(inputId, labelId) {
+  const f = document.getElementById(inputId).files[0];
+  if (f) document.getElementById(labelId).textContent = '📄 ' + f.name;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// HEALTH CHECK
+// ═══════════════════════════════════════════════════════════════════════
+const SERVICES = [
+  { key: 'controller',  name: 'Controller (Go)',        url: URLS.controller,  hp: HEALTH.controller },
+  { key: 'users',       name: 'User Service (Python)',   url: URLS.users,       hp: HEALTH.users },
+  { key: 'ai',          name: 'Summary / AI (Python)',   url: URLS.ai,          hp: HEALTH.ai },
+  { key: 'extractor',   name: 'Extract Text (Python)',   url: URLS.extractor,   hp: HEALTH.extractor },
+  { key: 'persistence', name: 'Persistence (Python)',    url: URLS.persistence, hp: HEALTH.persistence },
+];
+
+function buildHealthGrid() {
+  document.getElementById('health-grid').innerHTML = SERVICES.map(s => `
+    <div class="health-card">
+      <div class="health-card-name">${s.name}</div>
+      <div class="health-card-url">${s.url}</div>
+      <div class="health-card-status">
+        <span class="status-dot" id="hc-${s.key}"></span>
+        <span id="hc-${s.key}-text">Sin verificar</span>
+      </div>
+      <button class="health-ping-btn" onclick="pingSingle('${s.key}')">Ping</button>
+    </div>`).join('');
+}
+
+async function pingSingle(key) {
+  const s = SERVICES.find(x => x.key === key);
+  const ig = document.getElementById('hc-' + key);
+  const is = document.getElementById('si-' + key);
+  const tx = document.getElementById('hc-' + key + '-text');
+  ig.className = 'status-dot';
+  if (tx) tx.textContent = 'Verificando...';
+  const r = await req('Health: ' + s.name, s.url + s.hp, { method: 'GET' });
+  const cls = r.ok ? 'status-dot up' : 'status-dot down';
+  ig.className = cls;
+  if (is) is.className = cls;
+  if (tx) tx.textContent = r.ok ? '✓ Activo' : '✗ No responde';
+}
+
+async function pingAll() { for (const s of SERVICES) await pingSingle(s.key); }
+
+// ═══════════════════════════════════════════════════════════════════════
+// STATS
+// ═══════════════════════════════════════════════════════════════════════
+function updateStats() {
+  document.getElementById('stat-pdfs').textContent = stats.pdfs;
+  document.getElementById('stat-texts').textContent = stats.texts;
+  document.getElementById('stat-sums').textContent = stats.sums;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// UTILS
+// ═══════════════════════════════════════════════════════════════════════
+function arrayBufferToBase64(buffer) {
+  let binary = '';
+  const bytes = new Uint8Array(buffer);
+  const chunkSize = 8192;
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    const chunk = bytes.subarray(i, i + chunkSize);
+    binary += String.fromCharCode.apply(null, chunk);
+  }
+  return btoa(binary);
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// FLOW COMPLETO
+// ═══════════════════════════════════════════════════════════════════════
+function flowSetStep(n, state) {
+  const el = document.getElementById('flow-step-' + n);
+  el.classList.remove('active', 'done');
+  if (state) el.classList.add(state);
+}
+
+function flowSetStatus(n, text) {
+  document.getElementById('flow-s' + n).textContent = text;
+}
+
+function flowFileChanged() {
+  const f = document.getElementById('flow-file').files[0];
+  if (f) document.getElementById('flow-file-label').textContent = '📄 ' + f.name;
+}
+
+// Drag and drop for flow
+const flowDrop = document.getElementById('flow-drop');
+flowDrop.addEventListener('dragover', e => { e.preventDefault(); flowDrop.classList.add('over'); });
+flowDrop.addEventListener('dragleave', () => flowDrop.classList.remove('over'));
+flowDrop.addEventListener('drop', e => {
+  e.preventDefault();
+  flowDrop.classList.remove('over');
+  if (e.dataTransfer.files.length > 0) {
+    document.getElementById('flow-file').files = e.dataTransfer.files;
+    flowFileChanged();
+  }
+});
+
+async function flowUpload() {
+  const file = document.getElementById('flow-file').files[0];
+  if (!file) {
+    showModal("Error", "Por favor seleccioná un archivo PDF primero.");
+    return addLog('Flujo', 400, 'Seleccioná un PDF primero', 'error');
+  }
+
+  // Validate
+  if (!file.name.toLowerCase().endsWith('.pdf')) {
+    showModal("Error", "El archivo debe tener extensión .pdf");
+    return addLog('Flujo', 400, 'Solo archivos PDF', 'error');
+  }
+  if (file.size > 25 * 1024 * 1024) {
+    showModal("Error", "El archivo excede el límite máximo de 25 MB.");
+    return addLog('Flujo', 400, 'Archivo muy grande (max 25MB)', 'error');
+  }
+
+  document.getElementById('flow-btn-1').disabled = true;
+  flowSetStatus(1, 'Enviando al Controller...');
+
+  // Read file → base64
+  const fileBuffer = await file.arrayBuffer();
+  const base64Content = arrayBufferToBase64(fileBuffer);
+
+  const r = await req('POST /api/v1/documents/upload', URLS.controller + '/api/v1/documents/upload', {
+    method: 'POST',
+    body: JSON.stringify({ file_name: file.name, content: base64Content }),
+  });
+
+  document.getElementById('flow-btn-1').disabled = false;
+
+  if (!r.ok) {
+    flowSetStatus(1, 'Error en subida');
+    showModal("Error en procesamiento", `<p>El servidor devolvió status ${r.status}.</p><pre>${JSON.stringify(r.data, null, 2)}</pre>`);
+    return;
+  }
+
+  // Success — the controller returns the full pipeline result
+  flow.docId = r.data.document_id;
+  flow.text = r.data.text || r.data.extracted_text || '';
+  flow.summary = r.data.summary || '';
+  flow.filename = r.data.filename || file.name;
+
+  document.getElementById('flow-doc-id').value = flow.docId || '';
+  document.getElementById('flow-status').value = r.data.status || 'ready';
+
+  // Step 1 done
+  flowSetStep(1, 'done');
+  flowSetStatus(1, '✓ Archivo enviado y orquestado');
+
+  // Step 2 — show extracted text COMPLETELY (no substring limit here, scrolling is handled by CSS)
+  flowSetStep(2, 'done');
+  stats.texts++;
+  stats.pdfs++;
+  const textLen = flow.text.length;
+  flowSetStatus(2, `✓ Texto extraído completamente (${textLen.toLocaleString()} caracteres)`);
+  const bar = document.getElementById('flow-bar');
+  bar.className = 'flow-bar completed';
+  bar.textContent = '✓ Extracción completada';
+  document.getElementById('flow-text-area').style.display = 'flex';
+  document.getElementById('flow-text-preview').textContent = flow.text;
+
+  // Step 3 — show summary
+  if (flow.summary) {
+    flowSetStep(3, 'done');
+    flowSetStatus(3, '✓ Resumen generado + guardado en DB');
+    stats.sums++;
+    document.getElementById('flow-result-area').style.display = 'flex';
+    document.getElementById('flow-result-text').textContent = flow.summary;
+    document.getElementById('flow-db-ok').style.display = 'flex';
+  } else {
+    flowSetStep(3, 'active');
+    flowSetStatus(3, 'Sin resumen (revisar logs o content-hash)');
+  }
+
+  updateStats();
+  addLog('🎉 Pipeline completado', 200, `${file.name} — ${textLen} chars texto, ${flow.summary.length} chars resumen`, 'success');
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// AUTHENTICATION
+// ═══════════════════════════════════════════════════════════════════════
+function updateAuthUI(email) {
+  if (email) {
+    document.getElementById('auth-forms').style.display = 'none';
+    document.getElementById('logged-in').style.display = 'block';
+    document.getElementById('current-user').textContent = email;
+  } else {
+    document.getElementById('auth-forms').style.display = 'grid';
+    document.getElementById('logged-in').style.display = 'none';
+  }
+}
+
+async function doLogin() {
+  const email = document.getElementById('login-email').value.trim();
+  const pass = document.getElementById('login-pass').value.trim();
+  if (!email || !pass) return showModal('Error', 'Faltan credenciales.');
+
+  const r = await req('POST /api/v1/auth/login', URLS.users + '/api/v1/auth/login', {
+    method: 'POST',
+    body: JSON.stringify({ email, password: pass }),
+  });
+
+  if (r.ok && r.data) {
+    const userName = r.data.user?.first_name || r.data.user?.email || email;
+    updateAuthUI(r.data.user?.email || email);
+    showModal('Login Exitoso', `¡Hola, ${userName}!<br><br>Has iniciado sesión correctamente. Tu Bearer Token fue guardado.`);
+    addLog(`¡Hola ${userName}!`, 200, 'Login exitoso', 'success');
+  } else {
+    showModal('Error de Login', `Credenciales incorrectas o el servicio falló.<br><br><pre>${JSON.stringify(r.data, null, 2)}</pre>`);
+  }
+}
+
+async function doRegister() {
+  const first_name = document.getElementById('reg-first').value.trim();
+  const last_name = document.getElementById('reg-last').value.trim();
+  const email = document.getElementById('reg-email').value.trim();
+  const password = document.getElementById('reg-pass').value.trim();
+  if (!first_name || !last_name || !email || !password) return showModal('Error', 'Por favor completá todos los campos.');
+
+  const r = await req('POST /api/v1/auth/register', URLS.users + '/api/v1/auth/register', {
+    method: 'POST',
+    body: JSON.stringify({ email, first_name, last_name, password }),
+  });
+
+  if (r.ok && r.data) {
+    updateAuthUI(r.data.user?.email || email);
+    showModal('Registro Exitoso', `Tu cuenta <strong>${email}</strong> fue creada correctamente y ya estás logueado.`);
+    addLog('Registro exitoso', 201, `Usuario ${email} creado`, 'success');
+  } else {
+    showModal('Error en Registro', `<p>Hubo un problema registrando al usuario.</p><pre>${JSON.stringify(r.data, null, 2)}</pre>`);
+  }
+}
+
+function doLogout() {
+  document.getElementById('global-token').value = '';
+  updateAuthUI(null);
+  showModal('Sesión Cerrada', 'Has cerrado sesión exitosamente. Tu token fue borrado.');
+  addLog('👋 Sesión cerrada', 200, '', 'info');
+}
+
+async function getMe() {
+  const r = await req('GET /api/v1/auth/me', URLS.users + '/api/v1/auth/me', { method: 'GET' });
+  if (r.ok) {
+    showModal('👤 Mi Perfil', `<pre>${JSON.stringify(r.data, null, 2)}</pre>`);
+  } else {
+    showModal('No Autorizado', `<p>No se pudo obtener el perfil. Revisa si estás logueado.</p><pre>${JSON.stringify(r.data, null, 2)}</pre>`);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// DOCUMENTOS
+// ═══════════════════════════════════════════════════════════════════════
+async function uploadDoc() {
+  const file = document.getElementById('doc-file').files[0];
+  if (!file) return showModal('Error', 'Falta archivo.');
+
+  const fileBuffer = await file.arrayBuffer();
+  const base64Content = arrayBufferToBase64(fileBuffer);
+
+  const r = await req('POST /api/v1/documents/upload', URLS.controller + '/api/v1/documents/upload', {
+    method: 'POST',
+    body: JSON.stringify({ file_name: file.name, content: base64Content }),
+  });
+
+  if (r.ok) {
+    stats.pdfs++;
+    stats.texts++;
+    if (r.data.summary) stats.sums++;
+    updateStats();
+    showModal('✅ Archivo Subido', `El archivo <strong>${file.name}</strong> fue subido y procesado correctamente.<br><br><strong>Document ID:</strong> ${r.data.document_id}`);
+  } else {
+    showModal('❌ Error de Subida', `<p>Hubo un fallo subiendo el documento.</p><pre>${JSON.stringify(r.data, null, 2)}</pre>`);
+  }
+}
+
+async function getDocStatus() {
+  const id = document.getElementById('doc-get-id').value.trim();
+  if (!id) return showModal('Error', 'Ingresá un ID de documento válido.');
+  const r = await req('GET /api/v1/documents/' + id, URLS.controller + '/api/v1/documents/' + id, { method: 'GET' });
+  if (r.ok) {
+    let content = `<p><strong>ID:</strong> ${r.data.document_id}</p><p><strong>Status:</strong> ${r.data.status}</p>`;
+    // Sometimes the controller can return the text directly depending on its cache payload
+    if (r.data.text) content += `<br><strong>Texto Extraído:</strong><pre style="max-height:300px;">${r.data.text}</pre>`;
+    showModal(`📄 Documento Encontrado`, content);
+  } else {
+    showModal('Documento no encontrado', `<p>No se encontró ningún documento con ID: <strong>${id}</strong></p><pre>${JSON.stringify(r.data, null, 2)}</pre>`);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// RESÚMENES & PERSISTENCIA GETS
+// ═══════════════════════════════════════════════════════════════════════
+async function getSummary() {
+  const id = document.getElementById('sum-doc-id').value.trim();
+  if (!id) return showModal('Error', 'Ingresá un ID de documento.');
+  const r = await req('GET /api/v1/summaries/document/' + id, URLS.controller + '/api/v1/summaries/document/' + id, { method: 'GET' });
+  
+  if (r.ok) {
+    showModal(`✨ Resumen Encontrado (Doc ID: ${id})`, `<pre>${r.data.summary || JSON.stringify(r.data, null, 2)}</pre>`);
+  } else {
+    showModal('Resumen no encontrado', `<p>No se encontró ningún resumen asociado al documento: <strong>${id}</strong></p><pre>${JSON.stringify(r.data, null, 2)}</pre>`);
+  }
+}
+
+async function persistGet(resource, title) {
+  const r = await req('GET /api/v1/db/' + resource, URLS.persistence + '/api/v1/db/' + resource, { method: 'GET' });
+  if (r.ok) {
+    let count = Array.isArray(r.data) ? r.data.length : '?';
+    showModal(`📊 ${title} (${count} registros)`, `<pre style="max-height:50vh;">${JSON.stringify(r.data, null, 2)}</pre>`);
+  } else {
+    showModal('Error consultando DB', `<p>No se pudo obtener la información desde el Persistence Service.</p><pre>${JSON.stringify(r.data, null, 2)}</pre>`);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════════════════════
+buildHealthGrid();
+addLog('🚀 NotebookUM Dashboard listo', 'OK', 'Esperando acciones...', 'info');
+
+// Auto health check on load
+setTimeout(() => pingAll(), 500);
+</script>
+</body>
+</html>
