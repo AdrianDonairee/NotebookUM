@@ -1,0 +1,275 @@
+services:
+  traefik:
+    image: traefik:v3.5
+    container_name: traefik
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    ports:
+      - 80:80
+      - 443:443
+      - 6379:6379
+      - 5432:5432
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ../Microservicios/traefik/config/traefik.yml:/etc/traefik/traefik.yml:ro
+      - ../Microservicios/traefik/config/config.yml:/etc/traefik/config.yml:ro
+      - ../Microservicios/traefik/certs:/etc/certs:ro
+    networks:
+      - redum
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.traefik=true"
+
+  postgresql:
+    container_name: postgresql-servidor
+    image: postgres:15.4-bullseye
+    networks:
+      - redum
+    environment:
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+      - POSTGRES_DB=${POSTGRES_DB:-notebookum}
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - PGDATA=/var/lib/postgresql/data/pgdata
+    volumes:
+      - ../Microservicios/postgresql/data:/var/lib/postgresql/data
+    labels:
+      - "traefik.enable=true"
+      - "traefik.tcp.routers.postgresql.rule=HostSNI(*)"
+      - "traefik.tcp.routers.postgresql.entrypoints=postgresql"
+      - "traefik.tcp.services.postgresql.loadbalancer.server.port=5432"
+    restart: always
+
+  redis:
+    image: redis:7-bookworm
+    container_name: redis
+    restart: always
+    volumes:
+      - ../Microservicios/redis/data:/data
+      - ../Microservicios/redis/data/redis.conf:/data/redis.conf
+    command: redis-server /data/redis.conf --loglevel notice --requirepass ${REDIS_PASSWORD:-redis}
+    networks:
+      - redum
+    labels:
+      - "traefik.enable=true"
+      - "traefik.tcp.routers.redis.rule=HostSNI(`*`)"
+      - "traefik.tcp.routers.redis.entryPoints=redis"
+      - "traefik.tcp.routers.redis.service=redis"
+      - "traefik.tcp.services.redis.loadbalancer.server.port=6379"
+
+  pgadmin:
+    image: dpage/pgadmin4:9.9
+    environment:
+      - PGADMIN_DEFAULT_EMAIL=${PGADMIN_DEFAULT_EMAIL:-admin@admin.com}
+      - PGADMIN_DEFAULT_PASSWORD=${PGADMIN_DEFAULT_PASSWORD:-admin}
+      - PGADMIN_LISTEN_PORT=80
+    networks:
+      - redum
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.pgadmin.rule=Host(`pgadmin.universidad.localhost`)"
+      - "traefik.http.routers.pgadmin.tls=true"
+      - "traefik.http.services.pgadmin.loadbalancer.server.port=80"
+      - "traefik.docker.network=redum"
+    depends_on:
+      - postgresql
+
+  gateway:
+    build:
+      context: ../service-controller-notebookum
+      dockerfile: Dockerfile
+    container_name: notebookum-controller
+    environment:
+      PORT: "8000"
+    env_file:
+      - ../service-controller-notebookum/.env.example
+    volumes:
+      - ../service-controller-notebookum:/app:ro
+    restart: unless-stopped
+    networks:
+      - redum
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.controller.rule=Host(`controller.universidad.localhost`)"
+      - "traefik.http.routers.controller.entrypoints=https"
+      - "traefik.http.routers.controller.tls=true"
+      - "traefik.http.services.controller.loadbalancer.server.port=8000"
+      - "traefik.docker.network=redum"
+    depends_on:
+      - traefik
+
+  persistence:
+    build:
+      context: ../service-persistence-notebookum
+      dockerfile: Dockerfile
+    image: notebookum-persistence:v1.0.0
+    container_name: notebookum-persistence
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.50'
+          memory: 512M
+    networks:
+      - redum
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.persistence.rule=Host(`persistence.universidad.localhost`)"
+      - "traefik.http.routers.persistence.entrypoints=https"
+      - "traefik.http.routers.persistence.tls=true"
+      - "traefik.http.services.persistence.loadbalancer.server.port=5000"
+      - "traefik.http.middlewares.bulkhead-persistence.inflightreq.amount=50"
+      - "traefik.http.routers.persistence.middlewares=bulkhead-persistence"
+      - "traefik.docker.network=redum"
+    volumes:
+      - ../service-persistence-notebookum/app:/app/app:ro
+      - ../service-persistence-notebookum/main.py:/app/main.py:ro
+    environment:
+      - FLASK_ENV=${FLASK_ENV:-production}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS}
+      - PORT=5000
+      - DB_WRITE_HOST=${DB_WRITE_HOST:-mysql-primary}
+      - DB_READ_HOST=${DB_READ_HOST:-mysql-replica}
+      - DB_PORT=${DB_PORT:-3306}
+      - DB_NAME=${DB_NAME}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+    depends_on:
+      - traefik
+
+  summary:
+    build:
+      context: ../service-summary-notebookum
+      dockerfile: Dockerfile
+    container_name: summary_service
+    environment:
+      DATABASE_URL: postgresql+psycopg://postgres:postgres@postgresql:5432/summary_service
+      GEMMA4_API_KEY: ${GEMMA4_API_KEY}
+      GEMMA4_API_BASE_URL: https://ai.cloud.um.edu.ar/api/v1
+      GEMMA4_MODEL: gemma4-26b-16g
+      HOST: 0.0.0.0
+      PORT: 8002
+      LOG_LEVEL: INFO
+    command: uvicorn main:app --host 0.0.0.0 --port 8002 --reload
+    networks:
+      - redum
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.summary.rule=Host(`summary.universidad.localhost`)"
+      - "traefik.http.routers.summary.entrypoints=https"
+      - "traefik.http.routers.summary.tls=true"
+      - "traefik.http.services.summary.loadbalancer.server.port=8002"
+      - "traefik.docker.network=redum"
+    depends_on:
+      - traefik
+      - postgresql
+
+  user-service:
+    build:
+      context: ../service-user-notebookum
+      dockerfile: Dockerfile
+    image: notebookum-user:latest
+    restart: unless-stopped
+    deploy:
+      replicas: 2
+    networks:
+      - redum
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.user.rule=Host(`user.universidad.localhost`)"
+      - "traefik.http.routers.user.entrypoints=https"
+      - "traefik.http.routers.user.tls=true"
+      - "traefik.http.services.user.loadbalancer.server.port=5004"
+      - "traefik.docker.network=redum"
+      - "traefik.http.middlewares.cb-user.circuitbreaker.expression=NetworkErrorRatio() > 0.5"
+      - "traefik.http.middlewares.bulkhead-user.inflightreq.amount=30"
+      - "traefik.http.routers.user.middlewares=cb-user,bulkhead-user"
+    volumes:
+      - ../service-user-notebookum/app:/app/app:ro
+      - ../service-user-notebookum/main.py:/app/main.py:ro
+    environment:
+      - FLASK_ENV=development
+      - PORT=5004
+      - PERSISTENCE_URL=http://persistence:5003
+    depends_on:
+      - traefik
+      - persistence
+
+  extract-text-service:
+    build:
+      context: ../extract-text-service
+      dockerfile: Dockerfile
+    image: extract-text-service:latest
+    container_name: extract-text-service
+    restart: unless-stopped
+    environment:
+      PYTHONUNBUFFERED: "1"
+      PYTHONDONTWRITEBYTECODE: "1"
+      APP_PORT: "5000"
+      TRAEFIK_HOST: "${TRAEFIK_HOST:-extract-text-service.universidad.localhost}"
+      NOTEBOOKUM_URL: "${NOTEBOOKUM_URL:-http://notebookum:5000}"
+      USER_SERVICE_URL: "${USER_SERVICE_URL:-http://user-service:5004}"
+      SUMMARY_SERVICE_URL: "${SUMMARY_SERVICE_URL:-http://summary:8002}"
+      PERSISTENCE_SERVICE_URL: "${PERSISTENCE_SERVICE_URL:-http://persistence:5000}"
+    command:
+      - uvicorn
+      - main:app
+      - --host
+      - 0.0.0.0
+      - --port
+      - "${APP_PORT:-5000}"
+    networks:
+      - redum
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.extract-text-service.rule=Host(`${TRAEFIK_HOST:-extract-text-service.universidad.localhost}`)
+      - traefik.http.routers.extract-text-service.entrypoints=https
+      - traefik.http.routers.extract-text-service.tls=true
+      - traefik.http.routers.extract-text-service.service=extract-text-service
+      - traefik.http.services.extract-text-service.loadbalancer.server.port=5000
+      - traefik.docker.network=redum
+    depends_on:
+      - traefik
+      - notebookum
+      - user-service
+      - persistence
+
+  notebookum:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: notebookum:latest
+    container_name: notebookum
+    restart: unless-stopped
+    environment:
+      PYTHONUNBUFFERED: "1"
+      PYTHONDONTWRITEBYTECODE: "1"
+      APP_PORT: "5000"
+      SECRET_KEY: "${SECRET_KEY:-clave-secreta-por-defecto}"
+      DATABASE_URL: "${DATABASE_URL:-postgresql://postgres:postgres@postgresql:5432/notebookum}"
+      URL_API: "${URL_API:-https://ai.cloud.um.edu.ar/api/v1}"
+    command:
+      - uvicorn
+      - src.app:app
+      - --host
+      - 0.0.0.0
+      - --port
+      - "${APP_PORT:-5000}"
+    ports:
+      - "${APP_PORT:-5000}:5000"
+    networks:
+      - redum
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.notebookum.rule=Host(`notebookum.universidad.localhost`)
+      - traefik.http.routers.notebookum.entrypoints=https
+      - traefik.http.routers.notebookum.tls=true
+      - traefik.http.services.notebookum.loadbalancer.server.port=5000
+      - traefik.docker.network=redum
+    depends_on:
+      - traefik
+      - postgresql
+
+networks:
+  redum:
+    external: true
